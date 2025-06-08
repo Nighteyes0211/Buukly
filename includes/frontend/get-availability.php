@@ -13,7 +13,7 @@ $slots = buukly_get_available_slots($employee_id, $date);
 ?>
 <div class="buukly-time-slots">
     <h3>Verfügbare Zeiten für <?php echo esc_html(date_i18n('l, d. F Y', strtotime($date))); ?></h3>
-    <ul>
+    <ul class="horizontal-list">
         <?php if (empty($slots)): ?>
             <li>Keine freien Zeiten verfügbar.</li>
         <?php else: ?>

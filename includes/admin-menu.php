@@ -54,6 +54,28 @@ function buukly_admin_enqueue_assets($hook) {
 }
 add_action('admin_enqueue_scripts', 'buukly_admin_enqueue_assets');
 
+add_action('admin_post_connect_employee_outlook', 'buukly_handle_connect_outlook');
+
+
+function buukly_handle_connect_outlook() {
+    if (!current_user_can('manage_options')) {
+        wp_die('Keine Berechtigung.');
+    }
+
+    if (!isset($_POST['outlook_connect_employee'])) {
+        wp_die('Fehlender Mitarbeiter.');
+    }
+
+    $employee_id = intval($_POST['outlook_connect_employee']);
+
+    require_once plugin_dir_path(__FILE__) . 'oauth/outlook-connect.php';
+    $url = buukly_get_oauth_url($employee_id);
+
+    wp_redirect($url);
+    exit;
+}
+
+
 // Render-Callbacks
 require_once plugin_dir_path(__FILE__) . '/admin/admin-dashboard.php';
 

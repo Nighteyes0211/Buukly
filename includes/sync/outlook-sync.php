@@ -12,6 +12,7 @@ function buukly_fetch_outlook_events() {
         $now = time();
         $expires = strtotime($employee->outlook_token_expires);
 
+        // 🔄 Token ggf. erneuern
         if ($expires <= $now) {
             $new_token = buukly_refresh_access_token($employee);
             if (!$new_token) {
@@ -49,10 +50,13 @@ function buukly_fetch_outlook_events() {
             continue;
         }
 
+        // 🆕 Aktuelle Outlook-Termine speichern
+        $outlook_ids = [];
+
         foreach ($data['value'] as $event) {
             $event_id = sanitize_text_field($event['id']);
+            $outlook_ids[] = $event_id;
 
-            // 💡 Zeitstempel aus UTC in Europe/Berlin umwandeln
             $start_dt = new DateTime($event['start']['dateTime'], new DateTimeZone('UTC'));
             $start_dt->setTimezone(new DateTimeZone('Europe/Berlin'));
 
@@ -75,8 +79,25 @@ function buukly_fetch_outlook_events() {
                 'created_at'       => current_time('mysql'),
             ]);
         }
+
+        // 🧹 Alte Events entfernen, die Outlook nicht mehr liefert
+        $db_events = $wpdb->get_results($wpdb->prepare(
+            "SELECT outlook_event_id FROM $table_events WHERE employee_id = %d",
+            $employee->id
+        ));
+
+        $db_ids = array_map(fn($e) => $e->outlook_event_id, $db_events);
+        $to_delete = array_diff($db_ids, $outlook_ids);
+
+        foreach ($to_delete as $event_id) {
+            $wpdb->delete($table_events, [
+                'employee_id' => $employee->id,
+                'outlook_event_id' => $event_id
+            ]);
+        }
     }
 }
+
 
 
 
@@ -125,10 +146,8 @@ function buukly_refresh_access_token($employee) {
 function buukly_get_available_slots($employee_id, $date) {
     global $wpdb;
 
-    // 1. Tag ermitteln (1 = Montag)
-    $weekday = (int) date('N', strtotime($date));
+    $weekday = (int) date('N', strtotime($date)); // 1 = Montag
 
-    // 2. Verfügbarkeit aus buukly_employee_availability laden
     $availability = $wpdb->get_results($wpdb->prepare(
         "SELECT start_time, end_time FROM {$wpdb->prefix}buukly_employee_availability
          WHERE employee_id = %d AND weekday = %d",
@@ -136,21 +155,18 @@ function buukly_get_available_slots($employee_id, $date) {
         $weekday
     ));
 
-    if (empty($availability)) return []; // keine Arbeitszeit hinterlegt
+    if (empty($availability)) return [];
 
-    // 3. Outlook-Token laden
     $employee = $wpdb->get_row($wpdb->prepare(
-    "SELECT * FROM {$wpdb->prefix}buukly_employees WHERE id = %d",
-    $employee_id
-));
+        "SELECT * FROM {$wpdb->prefix}buukly_employees WHERE id = %d",
+        $employee_id
+    ));
 
-if (!$employee || !$employee->outlook_access_token || !$employee->outlook_user_id) {
-    error_log("❌ Kein gültiger Outlook-Token/User für Mitarbeiter $employee_id");
-    return [];
-}
+    if (!$employee || !$employee->outlook_access_token || !$employee->outlook_user_id) {
+        error_log("❌ Kein gültiger Outlook-Token/User für Mitarbeiter $employee_id");
+        return [];
+    }
 
-
-    // 4. Outlook-Termine für den Tag abfragen
     $start = $date . 'T00:00:00';
     $end   = $date . 'T23:59:59';
 
@@ -176,40 +192,52 @@ if (!$employee || !$employee->outlook_access_token || !$employee->outlook_user_i
     $body = json_decode(wp_remote_retrieve_body($response), true);
     $busy = $body['value'][0]['scheduleItems'] ?? [];
 
-    // 5. Für jede DB-Verfügbarkeit Slots berechnen
+    $berlin = new DateTimeZone('Europe/Berlin');
     $available_slots = [];
 
-    foreach ($availability as $slot) {
-        $start_time = strtotime("$date {$slot->start_time}");
-        $end_time   = strtotime("$date {$slot->end_time}");
+    foreach ($availability as $range) {
+        $start_dt = new DateTime("{$date} {$range->start_time}", $berlin);
+        $end_dt   = new DateTime("{$date} {$range->end_time}", $berlin);
 
-        while ($start_time + 3600 <= $end_time) {
-            $slot_start = $start_time;
-            $slot_end   = $start_time + 3600;
+        $slot_start = clone $start_dt;
 
-            $overlap = false;
+        while ($slot_start < $end_dt) {
+            $slot_end = clone $slot_start;
+            $slot_end->modify('+1 hour');
 
-            foreach ($busy as $event) {
-                $busy_start = strtotime($event['start']['dateTime']);
-                $busy_end   = strtotime($event['end']['dateTime']);
-
-                if ($slot_start < $busy_end && $slot_end > $busy_start) {
-                    $overlap = true;
+            if ($slot_end > $end_dt) {
+                if ($slot_start < $end_dt) {
+                    $slot_end = clone $end_dt;
+                } else {
                     break;
                 }
             }
 
-            if (!$overlap) {
+            $has_overlap = false;
+
+            foreach ($busy as $event) {
+                $busy_start = new DateTime($event['start']['dateTime'], new DateTimeZone('UTC'));
+                $busy_end   = new DateTime($event['end']['dateTime'], new DateTimeZone('UTC'));
+
+                $busy_start->setTimezone($berlin);
+                $busy_end->setTimezone($berlin);
+
+                if ($slot_start < $busy_end && $slot_end > $busy_start) {
+                    $has_overlap = true;
+                    break;
+                }
+            }
+
+            if (!$has_overlap) {
                 $available_slots[] = [
-                    'start' => date('Y-m-d H:i:s', $slot_start),
-                    'end'   => date('Y-m-d H:i:s', $slot_end)
+                    'start' => $slot_start->format('Y-m-d H:i:s'),
+                    'end'   => $slot_end->format('Y-m-d H:i:s')
                 ];
             }
 
-            $start_time += 1800; // 30 Min Schritt
+            $slot_start->modify('+30 minutes');
         }
     }
 
     return $available_slots;
 }
-

@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const calendarEl = document.getElementById('buukly-calendar');
             const locationInput = document.getElementById('buukly-location-id');
-
             if (!calendarEl || !locationInput) return;
 
             const calendar = new FullCalendar.Calendar(calendarEl, {
@@ -71,8 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         const slots = document.getElementById('buukly-slots-container');
                         if (slots) slots.innerHTML = '<p>Bitte zuerst einen Mitarbeiter wählen.</p>';
 
-                        const select = document.getElementById('buukly-employee-select');
-                        select.addEventListener('change', function () {
+                        document.getElementById('buukly-employee-select').addEventListener('change', function () {
                             const employeeId = this.value;
 
                             fetch(buukly_ajax.ajax_url, {
@@ -93,9 +91,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                     document.querySelectorAll('.buukly-slot').forEach(button => {
                                         button.addEventListener('click', function () {
+                                            // Aktiven Slot markieren
+                                            document.querySelectorAll('.buukly-slot').forEach(btn => btn.classList.remove('active-slot'));
+                                            this.classList.add('active-slot');
+
                                             const start = this.dataset.start;
                                             const end = this.dataset.end;
-                                            const date = selectedDate;
                                             const employeeId = document.getElementById('buukly-employee-select').value;
                                             const locationId = locationInput.value;
 
@@ -104,11 +105,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                             const formHtml = `
                                                 <div class="buukly-booking-form">
-                                                    <h3>Termin buchen: ${date} · ${start.slice(11, 16)} – ${end.slice(11, 16)}</h3>
+                                                    <h3>Termin buchen: ${selectedDate} · ${start.slice(11, 16)} – ${end.slice(11, 16)}</h3>
                                                     <form id="buukly-booking-form">
                                                         <input type="hidden" name="employee_id" value="${employeeId}">
                                                         <input type="hidden" name="location_id" value="${locationId}">
-                                                        <input type="hidden" name="date" value="${date}">
+                                                        <input type="hidden" name="date" value="${selectedDate}">
                                                         <input type="hidden" name="start_time" value="${start}">
                                                         <input type="hidden" name="end_time" value="${end}">
 
@@ -129,7 +130,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                             document.getElementById('buukly-booking-form').addEventListener('submit', function (e) {
                                                 e.preventDefault();
-
                                                 const form = this;
                                                 const formData = new FormData(form);
                                                 formData.append('action', 'buukly_send_booking');
@@ -158,16 +158,14 @@ document.addEventListener('DOMContentLoaded', function () {
                                 }
                             })
                             .catch(err => {
-                                const slotContainer = document.getElementById('buukly-slots-container');
-                                if (slotContainer) slotContainer.innerHTML = '<p>Fehler beim Laden der Uhrzeiten.</p>';
-                                console.error(err);
+                                console.error('Fehler beim Laden der Uhrzeiten:', err);
+                                document.getElementById('buukly-slots-container').innerHTML = '<p>Fehler beim Laden der Uhrzeiten.</p>';
                             });
                         });
                     })
                     .catch(err => {
-                        const container = document.getElementById('buukly-employees-container');
-                        if (container) container.innerHTML = '<p>Fehler beim Laden der Mitarbeiter.</p>';
-                        console.error(err);
+                        console.error('Fehler beim Laden der Mitarbeiter:', err);
+                        document.getElementById('buukly-employees-container').innerHTML = '<p>Fehler beim Laden der Mitarbeiter.</p>';
                     });
                 }
             });
@@ -175,8 +173,8 @@ document.addEventListener('DOMContentLoaded', function () {
             calendar.render();
         })
         .catch(err => {
+            console.error('Fehler beim Laden des Kalenders:', err);
             wrapper.innerHTML = '<p>Fehler beim Laden des Kalenders.</p>';
-            console.error(err);
         });
     });
 });

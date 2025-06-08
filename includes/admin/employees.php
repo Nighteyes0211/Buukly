@@ -4,6 +4,11 @@ global $wpdb;
 
 $table = $wpdb->prefix . 'buukly_employees';
 
+// ✅ Erfolgsnachricht bei Outlook-Callback
+if (isset($_GET['connected']) && $_GET['connected'] == '1') {
+    echo '<div class="notice notice-success is-dismissible"><p>✅ Outlook-Verbindung erfolgreich hergestellt.</p></div>';
+}
+
 // ✅ Mitarbeiter speichern (neu)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_employee'])) {
     $name = sanitize_text_field($_POST['name']);
@@ -26,6 +31,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_employee'])) {
         ]);
         echo '<div class="updated"><p>Neuer Mitarbeiter hinzugefügt.</p></div>';
     }
+}
+
+// ✅ Outlook-Verbindungsstart
+if (isset($_POST['outlook_connect_employee'])) {
+    $employee_id = intval($_POST['outlook_connect_employee']);
+
+    // OAuth-URL erzeugen
+    require_once plugin_dir_path(__FILE__) . '/../oauth/outlook-connect.php';
+    $oauth_url = buukly_get_oauth_url($employee_id);
+
+    wp_redirect($oauth_url);
+    exit;
 }
 
 // ✅ Mitarbeiter löschen
@@ -66,7 +83,7 @@ $employees = $wpdb->get_results("SELECT * FROM $table ORDER BY name ASC");
             <tr>
                 <th>Name</th>
                 <th>E-Mail</th>
-                <th>Microsoft-ID</th>
+                <th>Outlook</th>
                 <th>Aktionen</th>
             </tr>
         </thead>
@@ -75,7 +92,20 @@ $employees = $wpdb->get_results("SELECT * FROM $table ORDER BY name ASC");
                 <tr>
                     <td><?php echo esc_html($e->name); ?></td>
                     <td><?php echo esc_html($e->email); ?></td>
-                    <td><?php echo esc_html($e->outlook_user_id); ?></td>
+                    <td>
+                        <?php if (!empty($e->outlook_access_token)): ?>
+                            ✅ Verbunden<br>
+                            <small><strong>Microsoft ID:</strong> <?php echo esc_html($e->outlook_user_id); ?></small>
+                        <?php else: ?>
+                            ❌ Nicht verbunden
+                            <form method="post" action="<?php echo admin_url('admin-post.php'); ?>">
+                                <input type="hidden" name="action" value="connect_employee_outlook">
+                                <input type="hidden" name="outlook_connect_employee" value="<?= esc_attr($e->id); ?>">
+                                <?php submit_button('🔌 Mit Outlook verbinden', 'secondary small', 'connect_outlook', false); ?>
+                            </form>
+
+                        <?php endif; ?>
+                    </td>
                     <td>
                         <a href="<?php echo admin_url('admin.php?page=buukly_edit_employee&id=' . $e->id); ?>" class="button">✏️ Bearbeiten</a>
                         <a href="<?php echo admin_url('admin.php?page=buukly_employees&delete=' . $e->id); ?>" onclick="return confirm('Wirklich löschen?');" class="button">🗑 Löschen</a>

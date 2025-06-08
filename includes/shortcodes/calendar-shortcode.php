@@ -35,18 +35,85 @@ function buukly_render_calendar_shortcode($atts) {
     ob_start();
     ?>
     <div class="buukly-calendar-wrapper">
-        <p>Bitte wähle einen Standort:</p>
-        <form id="buukly-location-form">
+        <p class="buukly-title">In welcher Kanzlei wünschen Sie eine Beratung?</p>
+        <form id="buukly-location-form" class="buukly-location-form">
             <?php foreach ($locations as $loc): ?>
-                <label>
-                    <input type="radio" name="buukly_selected_location" value="<?= esc_attr($loc->id); ?>">
-                    <?= esc_html($loc->name); ?> <br>
-                    <?= esc_html($loc->street . ' ' . $loc->house_number . ', ' . $loc->zip . ' ' . $loc->city); ?>
-                </label><br><br>
+                <div class="buukly-location-entry">
+                    <label>
+                        <input type="radio" name="buukly_selected_location" value="<?= esc_attr($loc->id); ?>">
+                        <strong><?= esc_html($loc->name); ?></strong><br>
+                        <small><?= esc_html($loc->street . ' ' . $loc->house_number . ', ' . $loc->zip . ' ' . $loc->city); ?></small>
+                    </label>
+                </div>
             <?php endforeach; ?>
-            <button type="button" id="buukly-submit-location" class="button button-primary">Weiter</button>
+
+            <div class="buukly-button-wrapper">
+                <button type="button" id="buukly-submit-location" class="buukly-button">Weiter</button>
+            </div>
         </form>
     </div>
+
+    <style>
+        .buukly-calendar-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: 'Merriweather', Georgia, "Times New Roman", serif !important;
+            color: #000;
+        }
+
+        .buukly-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+        }
+
+        .buukly-location-entry {
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #f9f9f9;
+        }
+
+        .buukly-location-entry input[type="radio"] {
+            margin-right: 10px;
+        }
+
+        .buukly-button-wrapper {
+            text-align: right;
+        }
+
+        .buukly-button {
+            background-color: #9E8256;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-family: 'Merriweather', Georgia, "Times New Roman", serif !important;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.2s ease-in-out;
+            cursor: pointer;
+        }
+
+        .buukly-button:hover {
+            background-color: #bca689;
+        }
+
+        @media (max-width: 768px) {
+            .buukly-calendar-wrapper {
+                padding: 10px;
+            }
+
+            .buukly-button-wrapper {
+                text-align: center;
+            }
+
+            .buukly-button {
+                width: 100%;
+                margin-top: 15px;
+            }
+        }
+    </style>
     <?php
     return ob_get_clean();
 }

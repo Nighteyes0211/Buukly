@@ -53,6 +53,10 @@ function buukly_get_time_slots() {
 
         foreach ($busy_intervals as $busy) {
             if ($slot_start < $busy['end'] && $slot_end > $busy['start']) {
+                // Wenn Start exakt mit Ende übereinstimmt, ist das ok
+                if ($slot_end == $busy['start']) {
+                    continue;
+                }
                 $overlap = true;
                 break;
             }

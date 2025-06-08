@@ -74,6 +74,18 @@ function buukly_send_booking() {
 
     // 🗓️ Outlook-Termin erstellen
     if (!empty($employee->outlook_access_token) && !empty($employee->outlook_user_id)) {
+        // Falls Uhrzeit ohne Datum übergeben wurde, ergänzen
+        if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $start_time)) {
+            $start_time = "{$date} {$start_time}";
+        }
+        if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $end_time)) {
+            $end_time = "{$date} {$end_time}";
+        }
+
+        // Zeitobjekte erzeugen
+        $start_datetime = new DateTime($start_time, new DateTimeZone('Europe/Berlin'));
+        $end_datetime   = new DateTime($end_time, new DateTimeZone('Europe/Berlin'));
+
         $graph_url = "https://graph.microsoft.com/v1.0/users/{$employee->outlook_user_id}/events";
         $event_data = [
             'subject' => "🗓️ Termin mit {$first_name} {$last_name}",
@@ -87,11 +99,11 @@ function buukly_send_booking() {
                     <strong>Nachricht:</strong><br>" . nl2br($message) . "</p>"
             ],
             'start' => [
-                'dateTime' => (new DateTime("{$date} {$start_time}", new DateTimeZone('Europe/Berlin')))->format('Y-m-d\TH:i:s'),
+                'dateTime' => $start_datetime->format('Y-m-d\TH:i:s'),
                 'timeZone' => 'Europe/Berlin'
             ],
             'end' => [
-                'dateTime' => (new DateTime("{$date} {$end_time}", new DateTimeZone('Europe/Berlin')))->format('Y-m-d\TH:i:s'),
+                'dateTime' => $end_datetime->format('Y-m-d\TH:i:s'),
                 'timeZone' => 'Europe/Berlin'
             ],
             'location' => [
