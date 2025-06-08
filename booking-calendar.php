@@ -1,9 +1,13 @@
 <?php
 /**
- * Plugin Name: Buukly
- * Description: Buchungssystem mit Kalender, Standorten, Mitarbeitern und Verfügbarkeiten.
- * Version: 1.0.1
+ * Plugin Name:       Buukly – Booking Calendar
+ * Description:       Einfaches und synchronisiertes Buchungssystem mit Outlook-Integration.
+ * Version:           1.0.0
  * Author: <a href="https://www.kempener-werbejungs.de/software" target="_blank">KWJ Software</a> - Ein Unternehmen der <a href="https://www.kempener-werbejungs.de" target="_blank">Kempener Werbejungs</a>
+ * Author URI:        https://kwj-software.de
+ * License:           GPLv3
+ * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
+ * Text Domain:       buukly
  */
 
 if (!defined('ABSPATH')) exit;
@@ -11,7 +15,7 @@ if (!defined('ABSPATH')) exit;
 add_filter('cron_schedules', function($schedules) {
     $schedules['every_ten_minutes'] = [
         'interval' => 600, // 600 Sekunden = 10 Minuten
-        'display'  => __('Alle 10 Minuten', 'buukly')
+        'display'  => __('Alle 10 Minuten', 'Buukly')
     ];
     return $schedules;
 });
