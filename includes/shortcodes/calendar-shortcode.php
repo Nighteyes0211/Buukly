@@ -35,7 +35,7 @@ function buukly_render_calendar_shortcode($atts) {
     ob_start();
     ?>
     <div class="buukly-calendar-wrapper">
-        <p class="buukly-title">In welcher Kanzlei wünschen Sie eine Beratung?</p>
+        <p class="buukly-title">An welchem Standort wünschen Sie eine Beratung?</p>
         <form id="buukly-location-form" class="buukly-location-form">
             <?php foreach ($locations as $loc): ?>
                 <div class="buukly-location-entry">
@@ -52,6 +52,11 @@ function buukly_render_calendar_shortcode($atts) {
             </div>
         </form>
     </div>
+    <div id="buukly-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9998;"></div>
+<div id="buukly-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:#fff; padding:30px; border-radius:10px; z-index:9999; max-width:700px; width:90%; box-shadow:0 0 20px rgba(0,0,0,0.3);">
+  <button id="buukly-modal-close" style="position:absolute; top:10px; right:15px; background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+  <div id="buukly-modal-content"></div>
+</div>
 
     <style>
         .buukly-calendar-wrapper {

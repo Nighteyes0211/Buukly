@@ -32,6 +32,30 @@ add_shortcode('buukly_calendar', 'buukly_render_calendar_shortcode');
 
 
 
+add_action('wp_ajax_buukly_send_booking', 'buukly_handle_booking');
+add_action('wp_ajax_nopriv_buukly_send_booking', 'buukly_handle_booking');
+
+function buukly_handle_booking() {
+    // Optional: Sicherheit prüfen
+    if (!isset($_POST['email']) || !is_email($_POST['email'])) {
+        wp_send_json_error('Ungültige E-Mail');
+    }
+
+    // Optional: Wenn du einen Nonce verwendest
+    // check_ajax_referer('buukly_send_booking');
+
+    // Beispiel-Verarbeitung (hier kannst du speichern, E-Mail versenden usw.)
+    $name = sanitize_text_field($_POST['first_name'] . ' ' . $_POST['last_name']);
+    $email = sanitize_email($_POST['email']);
+    $phone = sanitize_text_field($_POST['phone'] ?? '');
+    $message = sanitize_textarea_field($_POST['message'] ?? '');
+
+    // Hier z. B. E-Mail senden oder Daten in DB schreiben …
+
+    wp_send_json_success('Buchung empfangen');
+}
+
+
 add_action('wp_ajax_buukly_load_tab', function () {
     check_ajax_referer('buukly_tab_nonce');
 

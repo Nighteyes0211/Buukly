@@ -2,11 +2,9 @@
 /**
  * Plugin Name:       Buukly – Booking Calendar
  * Description:       Einfaches und synchronisiertes Buchungssystem mit Outlook-Integration.
- * Version:           1.0.0
+ * Version:           1.0.3
  * Author: <a href="https://www.kempener-werbejungs.de/software" target="_blank">KWJ Software</a> - Ein Unternehmen der <a href="https://www.kempener-werbejungs.de" target="_blank">Kempener Werbejungs</a>
  * Author URI:        https://kwj-software.de
- * License:           GPLv3
- * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Text Domain:       buukly
  */
 
@@ -63,6 +61,37 @@ require_once plugin_dir_path(__FILE__) . 'includes/ajax/calendar-availability.ph
 
 require_once plugin_dir_path(__FILE__) . 'includes/oauth/outlook-callback.php';
 
+add_action('wp_ajax_buukly_send_booking', 'buukly_handle_booking');
+add_action('wp_ajax_nopriv_buukly_send_booking', 'buukly_handle_booking');
+
+function buukly_handle_booking() {
+    // Sicherheits-Check (falls du den Nonce nutzt)
+    if (!isset($_POST['_ajax_nonce']) || !wp_verify_nonce($_POST['_ajax_nonce'], 'buukly_nonce')) {
+        wp_send_json_error('Sicherheitsüberprüfung fehlgeschlagen');
+    }
+
+    // Pflichtfelder prüfen
+    if (empty($_POST['first_name']) || empty($_POST['last_name']) || empty($_POST['email'])) {
+        wp_send_json_error('Bitte alle Pflichtfelder ausfüllen.');
+    }
+
+    // Daten säubern
+    $first_name = sanitize_text_field($_POST['first_name']);
+    $last_name  = sanitize_text_field($_POST['last_name']);
+    $email      = sanitize_email($_POST['email']);
+    $phone      = sanitize_text_field($_POST['phone'] ?? '');
+    $message    = sanitize_textarea_field($_POST['message'] ?? '');
+
+    // Hier kannst du z. B. E-Mail senden oder in Datenbank schreiben
+    $admin_email = get_option('buukly_admin_email', get_option('admin_email'));
+    $subject = 'Neue Buchung über Buukly';
+    $body = "Name: $first_name $last_name\nE-Mail: $email\nTelefon: $phone\n\nNachricht:\n$message";
+    $headers = ['Content-Type: text/plain; charset=UTF-8'];
+
+    wp_mail($admin_email, $subject, $body, $headers);
+
+    wp_send_json_success('Buchung erfolgreich');
+}
 
 
 
@@ -72,12 +101,16 @@ function buukly_enqueue_scripts() {
     global $post;
     if (!has_shortcode($post->post_content, 'buukly_calendar')) return;
 
-    // FullCalendar v5.11.3 (letzte mit globalem Build)
+    // Bootstrap laden
+    wp_enqueue_style('bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css');
+
+    // FullCalendar CSS
     wp_enqueue_style(
         'fullcalendar-css',
         'https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css'
     );
 
+    // FullCalendar JS + Locales
     wp_enqueue_script(
         'fullcalendar-js',
         'https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js',
@@ -94,6 +127,7 @@ function buukly_enqueue_scripts() {
         true
     );
 
+    // Dein Haupt-JavaScript (buukly.js)
     wp_enqueue_script(
         'buukly-calendar',
         plugin_dir_url(__FILE__) . 'includes/assets/js/buukly.js',
@@ -102,10 +136,13 @@ function buukly_enqueue_scripts() {
         true
     );
 
+    // Lokalisierung: nur EIN Aufruf, inkl. Nonce
     wp_localize_script('buukly-calendar', 'buukly_ajax', [
-        'ajax_url' => admin_url('admin-ajax.php')
+        'ajax_url' => admin_url('admin-ajax.php'),
+        'nonce'    => wp_create_nonce('buukly_nonce')
     ]);
 }
+
 
 
 

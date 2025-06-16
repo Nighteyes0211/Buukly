@@ -1,3 +1,39 @@
+function ensureModalExists() {
+    if (!document.getElementById('buukly-modal')) {
+        const modal = document.createElement('div');
+        modal.id = 'buukly-modal';
+        modal.style = 'display:none; position:fixed; top:60% !important; left:50%; transform:translate(-40%, -50%); background:#fff; padding:30px; border-radius:10px; z-index:9999; max-width:700px; width:90%; box-shadow:0 0 20px rgba(0,0,0,0.3);';
+
+        const overlay = document.createElement('div');
+        overlay.id = 'buukly-modal-overlay';
+        overlay.style = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9998;';
+        overlay.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            modal.style.display = 'none';
+        });
+
+        const closeBtn = document.createElement('button');
+        closeBtn.id = 'buukly-modal-close';
+        closeBtn.textContent = '×';
+        closeBtn.style = 'position:absolute; top:10px; right:15px; background:none; border:none; font-size:24px; cursor:pointer;';
+        closeBtn.addEventListener('click', () => {
+            overlay.style.display = 'none';
+            modal.style.display = 'none';
+        });
+
+        const content = document.createElement('div');
+        content.id = 'buukly-modal-content';
+
+        modal.appendChild(closeBtn);
+        modal.appendChild(content);
+        document.body.appendChild(overlay);
+        document.body.appendChild(modal);
+    }
+}
+
+
+let isExistingClient = null;
+
 document.addEventListener('DOMContentLoaded', function () {
     const wrapper = document.querySelector('.buukly-calendar-wrapper');
     const button = document.getElementById('buukly-submit-location');
@@ -5,10 +41,52 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!wrapper || !button) return;
 
     button.addEventListener('click', function () {
-        const selectedLocation = wrapper.querySelector('input[name="buukly_selected_location"]:checked');
-        if (!selectedLocation) return alert('Bitte einen Standort auswählen.');
+        setTimeout(() => {
+            const selectedLocation = wrapper.querySelector('input[name="buukly_selected_location"]:checked');
+            if (!selectedLocation) {
+                alert('Bitte einen Standort auswählen.');
+                return;
+            }
 
-        const locationId = selectedLocation.value;
+            const locationId = selectedLocation.value;
+
+            // Mandantenabfrage anzeigen
+            const questionHTML = `
+                <div style="text-align:center; padding: 20px;">
+                    <h4>Sind Sie bereits Mandant bei uns?</h4>
+                    <button id="client-yes" class="btn btn-success" style="margin:10px;">Ja</button>
+                    <button id="client-no" class="btn btn-secondary" style="margin:10px;">Nein</button>
+                <p>Bitte beachten Sie, dass die Kosten einer Erstberatung sich auf <b>249,90€</b> belaufen. Bei bereits bestehendem Mandat, gilt die bereits unterzeichnete Mandats-/ Vergütungsvereinbarung.</p>
+
+                </div>
+            `;
+
+            ensureModalExists();
+            document.getElementById('buukly-modal-content').innerHTML = questionHTML;
+            document.getElementById('buukly-modal').style.display = 'block';
+            document.getElementById('buukly-modal-overlay').style.display = 'block';
+
+            document.getElementById('client-yes').onclick = () => {
+                isExistingClient = true;
+                closeModal();
+                loadCalendar(locationId);
+            };
+            document.getElementById('client-no').onclick = () => {
+                isExistingClient = false;
+                closeModal();
+                loadCalendar(locationId);
+            };
+
+            function closeModal() {
+                document.getElementById('buukly-modal').style.display = 'none';
+                document.getElementById('buukly-modal-overlay').style.display = 'none';
+            }
+        }, 0);
+    });
+
+
+    function loadCalendar(locationId) {
+        const wrapper = document.querySelector('.buukly-calendar-wrapper');
         wrapper.innerHTML = '<p>Lade Kalender …</p>';
 
         fetch(buukly_ajax.ajax_url, {
@@ -49,6 +127,8 @@ document.addEventListener('DOMContentLoaded', function () {
                             date: selectedDate
                         })
                     })
+
+
                     .then(r => r.json())
                     .then(data => {
                         const container = document.getElementById('buukly-employees-container');
@@ -83,6 +163,8 @@ document.addEventListener('DOMContentLoaded', function () {
                                     employee_id: employeeId
                                 })
                             })
+
+
                             .then(r => r.json())
                             .then(data => {
                                 const slotContainer = document.getElementById('buukly-slots-container');
@@ -91,90 +173,273 @@ document.addEventListener('DOMContentLoaded', function () {
 
                                     document.querySelectorAll('.buukly-slot').forEach(button => {
                                         button.addEventListener('click', function () {
-                                            // Aktiven Slot markieren
-                                            document.querySelectorAll('.buukly-slot').forEach(btn => btn.classList.remove('active-slot'));
-                                            this.classList.add('active-slot');
-
                                             const start = this.dataset.start;
                                             const end = this.dataset.end;
+                                            const selectedDate = start.slice(0, 10);
                                             const employeeId = document.getElementById('buukly-employee-select').value;
-                                            const locationId = locationInput.value;
+                                            const locationId = document.getElementById('buukly-location-id').value;
 
-                                            const existing = document.getElementById('buukly-booking-form');
-                                            if (existing) existing.parentElement.remove();
+                                            document.getElementById('buukly-modal-content').innerHTML = generateFormHTML(employeeId, locationId, selectedDate, start, end);
+                                            document.getElementById('buukly-modal').style.display = 'block';
+                                            document.getElementById('buukly-modal-overlay').style.display = 'block';
 
-                                            const formHtml = `
-                                                <div class="buukly-booking-form">
-                                                    <h3>Termin buchen: ${selectedDate} · ${start.slice(11, 16)} – ${end.slice(11, 16)}</h3>
-                                                    <form id="buukly-booking-form">
-                                                        <input type="hidden" name="employee_id" value="${employeeId}">
-                                                        <input type="hidden" name="location_id" value="${locationId}">
-                                                        <input type="hidden" name="date" value="${selectedDate}">
-                                                        <input type="hidden" name="start_time" value="${start}">
-                                                        <input type="hidden" name="end_time" value="${end}">
+                                            initMultistepForm();
 
-                                                        <label>Vorname:<br><input type="text" name="first_name" required></label><br>
-                                                        <label>Nachname:<br><input type="text" name="last_name" required></label><br>
-                                                        <label>E-Mail:<br><input type="email" name="email" required></label><br>
-                                                        <label>Telefon:<br><input type="text" name="phone"></label><br>
-                                                        <label>Nachricht:<br><textarea name="message"></textarea></label><br>
-
-                                                        <button type="submit">Termin buchen</button>
-                                                    </form>
-                                                </div>
-                                            `;
-
-                                            const formContainer = document.createElement('div');
-                                            formContainer.innerHTML = formHtml;
-                                            slotContainer.appendChild(formContainer);
-
-                                            document.getElementById('buukly-booking-form').addEventListener('submit', function (e) {
-                                                e.preventDefault();
-                                                const form = this;
-                                                const formData = new FormData(form);
-                                                formData.append('action', 'buukly_send_booking');
-
-                                                fetch(buukly_ajax.ajax_url, {
-                                                    method: 'POST',
-                                                    body: formData
-                                                })
-                                                .then(r => r.json())
-                                                .then(response => {
-                                                    if (response.success) {
-                                                        form.innerHTML = `<p><strong>Vielen Dank!</strong> Ihre Buchung wurde übermittelt.</p>`;
-                                                    } else {
-                                                        form.insertAdjacentHTML('beforeend', `<p style="color:red;">Fehler: ${response.data || 'Unbekannter Fehler'}</p>`);
-                                                    }
-                                                })
-                                                .catch(err => {
-                                                    console.error('Fehler beim Senden der Buchung:', err);
-                                                    form.insertAdjacentHTML('beforeend', `<p style="color:red;">Netzwerkfehler beim Senden der Buchung.</p>`);
-                                                });
-                                            });
+                                            document.getElementById('buukly-modal-close').onclick = function () {
+                                                document.getElementById('buukly-modal').style.display = 'none';
+                                                document.getElementById('buukly-modal-overlay').style.display = 'none';
+                                            };
                                         });
                                     });
-                                } else if (slotContainer) {
-                                    slotContainer.innerHTML = '<p>Keine Zeiten verfügbar.</p>';
                                 }
                             })
-                            .catch(err => {
-                                console.error('Fehler beim Laden der Uhrzeiten:', err);
-                                document.getElementById('buukly-slots-container').innerHTML = '<p>Fehler beim Laden der Uhrzeiten.</p>';
-                            });
+                            .catch(error => console.error('Error fetching time slots:', error));
                         });
                     })
-                    .catch(err => {
-                        console.error('Fehler beim Laden der Mitarbeiter:', err);
-                        document.getElementById('buukly-employees-container').innerHTML = '<p>Fehler beim Laden der Mitarbeiter.</p>';
-                    });
+                    .catch(error => console.error('Error fetching employees:', error));
                 }
             });
 
             calendar.render();
         })
-        .catch(err => {
-            console.error('Fehler beim Laden des Kalenders:', err);
-            wrapper.innerHTML = '<p>Fehler beim Laden des Kalenders.</p>';
+
+
+        .catch(error => console.error('Error fetching availability:', error));
+    }
+
+    function generateFormHTML(employeeId, locationId, selectedDate, start, end) {
+        return `
+            <h3>Termin buchen: ${selectedDate} · ${start.slice(11, 16)} – ${end.slice(11, 16)}</h3>
+            <form id="buukly-booking-form" class="container mt-4 mb-4">
+                <input type="hidden" name="employee_id" value="${employeeId}">
+                <input type="hidden" name="location_id" value="${locationId}">
+                <input type="hidden" name="date" value="${selectedDate}">
+                <input type="hidden" name="start_time" value="${start}">
+                <input type="hidden" name="end_time" value="${end}">
+
+                <div id="step-1" class="step">
+                    <fieldset class="mb-4">
+                        <legend class="h5">Persönliche Angaben</legend>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Vorname*</label>
+                                <input type="text" name="first_name" required class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nachname*</label>
+                                <input type="text" name="last_name" required class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Titel</label>
+                                <input type="text" name="title" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Geburtsdatum*</label>
+                                <input type="date" name="birth_date" required class="form-control">
+                            </div>
+                                        <div class="col-md-6 mb-3">
+                                <label class="form-label">Familienstand</label>
+                                <input type="text" name="family_status" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Anschrift*</label>
+                                <input type="text" name="address" required class="form-control">
+                            </div>
+                            ${isExistingClient ? `
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Aktenzeichen (falls vorhanden)</label>
+                                <input type="text" name="aktenzeichen" class="form-control">
+                            </div>` : ''}
+                        </div>
+                    </fieldset>
+                    <button type="button" class="btn btn-primary next-step">Weiter</button>
+                </div>
+
+                <div id="step-2" class="step" style="display: none;">
+                    <fieldset class="mb-4">
+                        <legend class="h5">Kontakt</legend>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Telefon</label>
+                                <input type="tel" name="phone" class="form-control">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Handy-Nr.</label>
+                                <input type="tel" name="mobile" class="form-control">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">E-Mail*</label>
+                                <input type="email" name="email" class="form-control" required>
+                            </div>
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Bankverbindung</label>
+                                <input type="text" name="bank_info" class="form-control">
+                            </div>
+                        </div>
+                    </fieldset>
+                    <button type="button" class="btn btn-secondary prev-step">Zurück</button>
+                    <button type="button" class="btn btn-primary next-step">Weiter</button>
+                </div>
+
+
+                
+                <div id="step-4" class="step" style="display: none;">
+                    <fieldset class="mb-4">
+                        <legend class="h5">Abschluss</legend>
+                        <div class="row">
+                        
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Schilden Sie uns kurz Ihr Anliegen</label>
+                                <textarea name="other_info" class="form-control"></textarea>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    
+                     ${isExistingClient === false ? `
+                <div class="form-check mb-2" id="accept-mandate-wrapper">
+                    <input class="form-check-input" type="checkbox" name="accept_mandate" id="accept_mandate" required>
+                    <label class="form-check-label" for="accept_mandate">
+                        Die <strong>Mandats-/Vergütungsvereinbarung</strong>, die <strong>Widerrufsbelehrung (Verbraucher)</strong> und die <strong>Erklärung zur Vertragsausführung vor Ablauf der Widerrufsfrist</strong> habe ich gelesen und zur Kenntnis genommen; ich stimme diesen zu.
+                    </label>
+                </div>
+                ` : ''}
+
+                        <div class="form-check mb-3">
+                          <input class="form-check-input" type="checkbox" name="accept_privacy" id="accept_privacy" required>
+                          <label class="form-check-label" for="accept_privacy">
+                            Die <strong>Datenschutzerklärung</strong> habe ich zur Kenntnis genommen und stimme zu.
+                          </label>
+                        </div>
+
+                        <p style="font-size: 12px; color: #999;">* Pflichtfelder</p>
+                        <button type="button" class="btn btn-secondary prev-step">Zurück</button>
+                        <button type="submit" class="btn btn-success">Termin buchen</button>
+                </div>
+            </form>
+        `;
+    }
+
+
+    function initMultistepForm() {
+        const form = document.getElementById('buukly-booking-form');
+        const steps = document.querySelectorAll('.step');
+        let currentStep = 0;
+
+        function validateStep(stepIndex) {
+            const inputs = steps[stepIndex].querySelectorAll('input, select, textarea');
+            for (let input of inputs) {
+                if (input.hasAttribute('required') && !input.value.trim()) {
+                    input.focus();
+                    input.classList.add('is-invalid');
+                    return false;
+                } else {
+                    input.classList.remove('is-invalid');
+                }
+            }
+            return true;
+        }
+
+        function showStep(stepIndex) {
+            steps.forEach((step, index) => {
+                step.style.display = index === stepIndex ? 'block' : 'none';
+            });
+        }
+
+        showStep(currentStep);
+
+        form.addEventListener('click', function (e) {
+            if (e.target.classList.contains('next-step')) {
+                e.preventDefault();
+                if (currentStep < steps.length - 1) {
+                    if (validateStep(currentStep)) {
+                        currentStep++;
+                        showStep(currentStep);
+                    }
+                }
+            } else if (e.target.classList.contains('prev-step')) {
+                e.preventDefault();
+                if (currentStep > 0) {
+                    currentStep--;
+                    showStep(currentStep);
+                }
+            }
         });
-    });
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = new FormData(form);
+            formData.append('action', 'buukly_send_booking');
+            formData.append('_ajax_nonce', buukly_ajax.nonce);
+
+            fetch(buukly_ajax.ajax_url, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(response => {
+                if (response.success) {
+                   if (!isExistingClient) {
+                        showRedirectOverlay(); // Zeigt Overlay
+                        setTimeout(() => {
+                            window.location.href = "https://erbrechtler.com/digitale-mandatsannahme/";
+                        }, 4000); // 2 Sekunden warten
+                    } else {
+                        form.innerHTML = `<p><strong>Vielen Dank!</strong> Ihre Buchung wurde übermittelt.</p>`;
+                    }
+                } else {
+                    form.insertAdjacentHTML('beforeend', `<p style="color:red;">Fehler: ${response.data || 'Unbekannter Fehler'}</p>`);
+                }
+            })
+            .catch(err => {
+                console.error('Fehler beim Senden der Buchung:', err);
+                form.insertAdjacentHTML('beforeend', `<p style="color:red;">Netzwerkfehler beim Senden der Buchung.</p>`);
+            });
+        });
+    }
+
+ // HIER die neue Funktion einfügen ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+    function showRedirectOverlay() {
+        const overlay = document.createElement('div');
+        overlay.id = 'redirect-overlay';
+        overlay.style = `
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            text-align: center;
+            flex-direction: column;
+        `;
+
+        overlay.innerHTML = `
+            <div style="margin-bottom: 20px;">Vielen Dank für Ihre Termin Buchung.<br>Wir leiten Sie jetzt zur <strong>Digitalen Mandatsannahme</strong> weiter … </div>
+            <div class="spinner" style="
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #ffffff;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+            "></div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // CSS Animation definieren
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
 });
+

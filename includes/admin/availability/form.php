@@ -3,6 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 global $wpdb;
 
+
 $employee_id = intval($_GET['id'] ?? $_POST['employee_id'] ?? 0);
 if (!$employee_id) wp_die('Keine Mitarbeiter-ID.');
 
@@ -114,6 +115,8 @@ $existing = $wpdb->get_results($wpdb->prepare(
 </form>
 
 <script>
+    let editIndex = null;
+
 const availabilityList = document.getElementById('availability_list').querySelector('tbody');
 const dataField = document.getElementById('availability_data');
 const state = [];
@@ -134,12 +137,16 @@ function renderList() {
             <td>${entry.start}</td>
             <td>${entry.end}</td>
             <td>${locations[entry.location]}</td>
-            <td><button type="button" class="button-link delete-entry" data-index="${index}">✖</button></td>
+            <td>
+                <button type="button" class="button-link edit-entry" data-index="${index}">✏️</button>
+                <button type="button" class="button-link delete-entry" data-index="${index}">✖</button>
+            </td>
         `;
         availabilityList.appendChild(row);
     });
     dataField.value = JSON.stringify(state);
 }
+
 
 document.getElementById('add_availability').addEventListener('click', () => {
     const weekday = parseInt(document.getElementById('weekday').value);
@@ -152,11 +159,33 @@ document.getElementById('add_availability').addEventListener('click', () => {
         return;
     }
 
-    state.push({ weekday, start, end, location });
+    const newEntry = { weekday, start, end, location };
+
+    if (editIndex !== null) {
+        state[editIndex] = newEntry;
+        editIndex = null;
+        document.getElementById('add_availability').textContent = '+ Hinzufügen';
+    } else {
+        state.push(newEntry);
+    }
+
     renderList();
 });
 
 availabilityList.addEventListener('click', function (e) {
+    if (e.target.classList.contains('edit-entry')) {
+    const index = parseInt(e.target.dataset.index);
+    const entry = state[index];
+
+    document.getElementById('weekday').value = entry.weekday;
+    document.getElementById('start_time').value = entry.start;
+    document.getElementById('end_time').value = entry.end;
+    document.getElementById('location_id').value = entry.location;
+
+    editIndex = index;
+    document.getElementById('add_availability').textContent = '✅ Änderungen übernehmen';
+    return;
+}
     if (e.target.classList.contains('delete-entry')) {
         const index = parseInt(e.target.dataset.index);
         state.splice(index, 1);

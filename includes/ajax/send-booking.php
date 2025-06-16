@@ -5,7 +5,11 @@ add_action('wp_ajax_buukly_send_booking', 'buukly_send_booking');
 add_action('wp_ajax_nopriv_buukly_send_booking', 'buukly_send_booking');
 
 function buukly_send_booking() {
+    check_ajax_referer('buukly_nonce');
     $required_fields = ['employee_id', 'location_id', 'date', 'start_time', 'end_time', 'first_name', 'last_name', 'email'];
+    if (empty($_POST['accept_mandate']) || empty($_POST['accept_privacy'])) {
+    wp_send_json_error('Bitte bestätigen Sie die rechtlichen Hinweise und die Datenschutzerklärung.');
+}
     foreach ($required_fields as $field) {
         if (empty($_POST[$field])) {
             wp_send_json_error("Feld '$field' fehlt.");
@@ -22,6 +26,14 @@ function buukly_send_booking() {
     $email       = sanitize_email($_POST['email']);
     $phone       = sanitize_text_field($_POST['phone'] ?? '');
     $message     = sanitize_textarea_field($_POST['message'] ?? '');
+    $aktenzeichen = sanitize_text_field($_POST['aktenzeichen'] ?? '');
+    $accept_mandate = !empty($_POST['accept_mandate']) ? 'Ja' : 'Nein';
+    $accept_privacy = !empty($_POST['accept_privacy']) ? 'Ja' : 'Nein';
+
+
+
+
+    
 
     global $wpdb;
 
@@ -45,6 +57,12 @@ function buukly_send_booking() {
         <p><strong>Name:</strong> {$first_name} {$last_name}</p>
         <p><strong>E-Mail:</strong> {$email}</p>
         <p><strong>Telefon:</strong> {$phone}</p>
+        <p><strong>Aktenzeichen:</strong> {$aktenzeichen}</p>
+        <p><strong>Zustimmungen:</strong></p>
+            <ul>
+              <li>Mandatsunterlagen: {$accept_mandate}</li>
+              <li>Datenschutzerklärung: {$accept_privacy}</li>
+            </ul>
         <p><strong>Nachricht:</strong><br>" . nl2br($message) . "</p>
     ";
 
@@ -67,7 +85,14 @@ function buukly_send_booking() {
             <li><strong>Uhrzeit:</strong> " . date('H:i', strtotime($start_time)) . " – " . date('H:i', strtotime($end_time)) . "</li>
             <li><strong>Mitarbeiter:</strong> {$employee->name}</li>
             <li><strong>Standort:</strong> {$location->name}</li>
+                <p>Bitte beachten Sie, dass die Kosten einer Erstberatung sich auf <b>249,90€</b> belaufen. Bei bereits bestehendem Mandat, gilt die bereits unterzeichnete Mandats-/ Vergütungsvereinbarung.</p>
+            <p><strong>Zustimmungen:</strong></p>
+            <ul>
+              <li>Mandatsunterlagen: {$accept_mandate}</li>
+              <li>Datenschutzerklärung: {$accept_privacy}</li>
+            </ul>
         </ul>
+        <p><strong>Aktenzeichen:</strong> {$aktenzeichen}</p>
         <p>Wir melden uns bei Ihnen, falls Rückfragen bestehen.</p>
     ";
     wp_mail($email, $client_subject, $client_body, $headers);
@@ -115,8 +140,11 @@ function buukly_send_booking() {
                     'name' => $employee->name
                 ],
                 'type' => 'required'
-            ]]
+            ]],
+            'showAs' => 'busy',
+            'sensitivity' => 'private'
         ];
+
 
         $response = wp_remote_post($graph_url, [
             'headers' => [
@@ -134,6 +162,26 @@ function buukly_send_booking() {
         }
     }
 
+        // ❗ Verfügbarkeitsprüfung pro Standort (nur 1 Raum!)
+        $overlap_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}buukly_bookings
+             WHERE location_id = %d
+             AND date = %s
+             AND (
+                 (start_time < %s AND end_time > %s) -- Überschneidung
+             )",
+            $location_id,
+            $date,
+            $end_time,
+            $start_time
+        ));
+
+        if ($overlap_exists > 0) {
+            wp_send_json_error('Dieser Zeitraum ist am gewählten Standort bereits belegt.');
+        }
+
+
+
     // 📝 In Datenbank speichern
     $wpdb->insert(
         $wpdb->prefix . 'buukly_bookings',
@@ -149,6 +197,8 @@ function buukly_send_booking() {
             'phone'       => $phone,
             'message'     => $message,
             'created_at'  => current_time('mysql', 1)
+
+
         ],
         ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
     );

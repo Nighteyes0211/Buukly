@@ -216,12 +216,19 @@ function buukly_get_available_slots($employee_id, $date) {
             $has_overlap = false;
 
             foreach ($busy as $event) {
+                //  Prüfe den Status explizit – 'free' oder 'workingElsewhere' blockieren nicht
+                $status = strtolower($event['status'] ?? 'busy');
+                if (in_array($status, ['free', 'workingelsewhere'])) {
+                    continue;
+                }
+
                 $busy_start = new DateTime($event['start']['dateTime'], new DateTimeZone('UTC'));
                 $busy_end   = new DateTime($event['end']['dateTime'], new DateTimeZone('UTC'));
 
                 $busy_start->setTimezone($berlin);
                 $busy_end->setTimezone($berlin);
 
+                // 🔁 Prüfe, ob sich der Slot mit einem blockierenden Termin überschneidet
                 if ($slot_start < $busy_end && $slot_end > $busy_start) {
                     $has_overlap = true;
                     break;
